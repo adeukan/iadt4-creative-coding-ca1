@@ -5,11 +5,11 @@ let outerCircles = [];
 let innerCircles = [];
 let numOfCols = 7;
 let numOfRows = 10;
-let actRandomSeed = 0;
-// selected offset value
-let offsetSize = 3;
 let interPoint;
 let d;
+// selected values
+let actRandomSeed = 62026.5947887674;
+let offsetSize = 7;
 
 function setup() {
     let scale = 75;
@@ -20,11 +20,11 @@ function setup() {
 
 function draw() {
 
-    clear();
     noLoop();
-    let tileSize = width / numOfCols;
+    clear();
     shakeColors();
 
+    let tileSize = width / numOfCols;
     for (let gridX = 0; gridX <= numOfCols; gridX++) {
 
         outerCircles[gridX] = [];
@@ -40,14 +40,12 @@ function draw() {
             let outerColor = lerpColor(topColors[gridX], lowColors[gridX], outerPos);
             let innerPos = map(gridY, 0, numOfRows, 0, 1);
             let innerColor = lerpColor(topColors[gridX], lowColors[gridX], innerPos);
-            // interpolation is temporary removed (topColors[gridX] instead of outerColor)
-            let outerCircle = new Circle(centerX, centerY, d, topColors[gridX]);
-            let innerCircle = new Circle(centerX, centerY, d / 2, innerColor);
+            // interpolation is back now
+            let outerCircle = new Circle(centerX, centerY, d, outerColor);
+            let innerCircle = new Circle(centerX, centerY, d / 2.5, innerColor);
+
             outerCircles[gridX].push(outerCircle);
             innerCircles[gridX].push(innerCircle);
-
-            // the palette will be created in another way
-            // palette.push(outerCircle.c);
 
             if (gridX === 0 && gridY === 1) {
                 let points = getIntersectPoints(outerCircles[gridX][gridY], outerCircles[gridX][gridY - 1]);
@@ -56,7 +54,6 @@ function draw() {
         }
     }
 
-    // fill the palette by moving through the ROWS of circles (including outside the canvas)
     let palette = [];
     for (let i = 0; i <= numOfCols; i++) {
         for (let j = 0; j < outerCircles.length; j++) {
@@ -64,76 +61,70 @@ function draw() {
         }
     }
 
-
-    // draw
     let colorCounter = 0;
     for (let gridX = 0; gridX <= numOfCols; gridX++) {
-
         outerCircles[gridX].forEach(function(circle, index) {
-
-            // in this version we don't need to control hidden rows of circles
-            // let BreakException = {};
-            // try {
-            //     if (index > numOfRows) throw BreakException;
-
             let colorIndex = colorCounter % palette.length;
             fill(palette[colorIndex]);
             ellipse(circle.x, circle.y, circle.d, circle.d);
             colorCounter++;
-
-            // } catch (e) {
-            //     if (e !== BreakException) throw e;
-            // }
         });
     }
 
-    drawArcs();
-}
-
-function mouseReleased() {
-
-    actRandomSeed = random(100000);
-
-    // select the optimal offset
-    offsetSize++;
-    console.log(offsetSize);
-
-    loop();
-}
-
-function shakeColors() {
-
-    randomSeed(actRandomSeed);
-
-    let topHue;
-    let lowHue;
-    let mult = 3;
-
-    for (let i = 0; i <= numOfCols * mult; i++) {
-        if (i === 0) {
-            topHue = random(360);
-            topColors[i] = color(topHue, 100, 100);
-
-        } else if (i < 4) {
-            topHue += 90;
-            topHue = topHue > 360 ? topHue - 360 : topHue;
-            topColors[i] = color(topHue, 100, 100);
-            lowColors[i] = topColors[i - 1];
-        } else {
-            topColors[i] = topColors[i - 4];
-            lowColors[i] = topColors[i - 1];
-        }
-
-        if (i === numOfCols * mult) {
-            lowColors[0] = topColors[numOfCols];
+    // reverse palette for inner circles
+    let reversePalette = [];
+    for (let i = 0; i <= numOfCols; i++) {
+        for (let j = 0; j < outerCircles.length; j++) {
+            reversePalette.push(outerCircles[j][i].c);
         }
     }
+    reversePalette.reverse();
+
+    // draw inner circles using reverse palette
+    colorCounter = 0;
+    for (let gridX = 0; gridX <= numOfCols; gridX++) {
+        innerCircles[gridX].forEach(function(circle, index) {
+            let colorIndex = colorCounter % palette.length;
+            fill(reversePalette[colorIndex]);
+            ellipse(circle.x, circle.y, circle.d, circle.d);
+            colorCounter++;
+        });
+    }
+
+    drawArcs('white');
+    drawArcs('yesGrad');
 }
 
-function drawArcs() {
+function drawArcs(grad) {
+
+    // if gradient is used
+    if (grad === 'yesGrad') {
+        // get context
+        var ctx = drawingContext;
+
+        // create radial gradient
+        // inner circle at the centre of canvas, radius 50
+        // outer circle at the centre of canvas, radius height
+        var gradient = ctx.createRadialGradient(width / 2, height / 2, 50, width / 2, height / 2, height);
+
+        // use 4 basic lolours with reduced alpha to create gradient stops
+        for (let i = 0; i < 4; i++) {
+
+            let stop = map(i, 0, 3, 0, 1);
+
+            let h = hue(topColors[i]);
+            let s = saturation(topColors[i]);
+            let b = brightness(topColors[i]);
+            let a = alpha(topColors[i]) - 90;
+            let stopColor = color(h, s, b, a);
+
+            gradient.addColorStop(stop, stopColor);
+        }
+    }
+
+    // draw arcs
     for (let i = 0; i < outerCircles.length; i++) {
         for (let j = 0; j < outerCircles[i].length; j++) {
-
             if (i === 0 && j === 0) {
                 var centX = outerCircles[i][j + 1].x;
                 var centY = outerCircles[i][j + 1].y;
@@ -143,12 +134,74 @@ function drawArcs() {
             }
             centX = outerCircles[i][j].x;
             centY = outerCircles[i][j].y;
-            stroke(180);
-            fill(180);
-            arc(centX, centY, d, d, PI + angle, -angle, CHORD);
-            arc(centX, centY, d, d, angle, PI - angle, CHORD);
-            arc(centX, centY, d, d, -PI / 2 + angle, PI / 2 - angle, CHORD);
-            arc(centX, centY, d, d, PI / 2 + angle, -PI / 2 - angle, CHORD);
+
+            if (grad === 'yesGrad') {
+                // set the fill style to gradient
+                ctx.fillStyle = gradient;
+                ctx.fill();
+            } else {
+                // clear vesica piscis
+                fill(180);
+            }
+
+            // // strange behaviour if use just 4 arcs, one of them changes the colour
+            // arc(centX, centY, d, d, angle, PI - angle, CHORD);
+            // arc(centX, centY, d, d, PI + angle, -angle, CHORD);
+            // arc(centX, centY, d, d, -PI / 2 + angle, PI / 2 - angle, CHORD);
+            // arc(centX, centY, d, d, PI / 2 + angle, -PI / 2 - angle, CHORD);
+
+            // duplicate arcs 1,2 and 3 to get the similar result with arc 4
+            arc(centX, centY, d, d, angle, PI - angle, CHORD); //1
+            arc(centX, centY, d, d, PI + angle, 2 * PI - angle, CHORD); //2
+            arc(centX, centY, d, d, PI * 1.5 + angle, PI / 2 - angle, CHORD); //3
+            arc(centX, centY, d, d, angle, PI - angle, CHORD); //1 copy
+            arc(centX, centY, d, d, PI + angle, 2 * PI - angle, CHORD); //2 copy
+            arc(centX, centY, d, d, PI * 1.5 + angle, PI / 2 - angle, CHORD); //3 copy
+            arc(centX, centY, d, d, PI / 2 + angle, PI * 1.5 - angle, CHORD); //4
+        }
+    }
+}
+
+function mouseReleased() {
+
+    actRandomSeed = random(100000);
+    console.log(actRandomSeed);
+
+    offsetSize++;
+    console.log(offsetSize);
+
+    loop();
+}
+
+function shakeColors() {
+
+    randomSeed(actRandomSeed);
+    let topHue;
+    let lowHue;
+    let mult = 3;
+
+    for (let i = 0; i <= numOfCols * mult; i++) {
+        if (i === 0) {
+            topHue = random(360);
+            topColors[i] = color(topHue, 90, 90);
+
+        } else if (i < 4) {
+
+            // set different saturation and brightness
+            let S = i * 20 + 30;
+            let B = i * 20 + 30;
+
+            topHue += 90;
+            topHue = topHue > 360 ? topHue - 360 : topHue;
+            topColors[i] = color(topHue, S, B);
+            lowColors[i] = topColors[i - 1];
+        } else {
+            topColors[i] = topColors[i - 4];
+            lowColors[i] = topColors[i - 1];
+        }
+
+        if (i === numOfCols * mult) {
+            lowColors[0] = topColors[numOfCols];
         }
     }
 }
